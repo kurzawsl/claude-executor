@@ -1,0 +1,14 @@
+{
+  "name": "mcp-claude-executor",
+  "version": "1.0.0",
+  "description": "World-class MCP server for managing Claude CLI execution with conversation history, async jobs, and continuous improvement",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

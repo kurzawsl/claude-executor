@@ -1,0 +1,4 @@
+2025-12-27T10:39:31.089Z [INFO] [OllamaEmbeddingServer] Ollama Embedding MCP Server running on stdio 
+2025-12-27T10:39:31.287Z [INFO] [TelegramCommunicatorServer] Telegram service initialized successfully 
+2025-12-27T10:39:31.289Z [INFO] [TelegramCommunicatorServer] Telegram Communicator MCP Server running on stdio 
+2025-12-27T10:39:31.296Z [INFO] [QuizStateManager] Loaded quiz state for 1 users 
