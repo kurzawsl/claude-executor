@@ -7,6 +7,8 @@ import {
   killJob,
   extractContext,
   buildClaudeArgs,
+  validateSessionId,
+  validateExecutionLimits,
 } from "../lib/jobs.js";
 
 function makeJob(overrides = {}) {
@@ -132,11 +134,17 @@ test("buildClaudeArgs throws without prompt", () => {
 test("buildClaudeArgs includes defaults", () => {
   const args = buildClaudeArgs({ prompt: "hi" }, "/tmp/mcp.json");
   assert.ok(args.includes("-p"));
-  assert.ok(args.includes("--dangerously-skip-permissions"));
+  // dangerouslySkipPermissions defaults to false — flag must NOT be present
+  assert.ok(!args.includes("--dangerously-skip-permissions"));
   assert.ok(args.includes("--mcp-config"));
   assert.ok(args.includes("/tmp/mcp.json"));
   assert.ok(args.includes("--max-turns"));
   assert.equal(args[args.length - 1], "hi");
+});
+
+test("buildClaudeArgs opt-in dangerouslySkipPermissions=true adds flag", () => {
+  const args = buildClaudeArgs({ prompt: "hi", dangerouslySkipPermissions: true }, "/tmp/mcp.json");
+  assert.ok(args.includes("--dangerously-skip-permissions"));
 });
 
 test("buildClaudeArgs respects options", () => {
@@ -159,4 +167,50 @@ test("buildClaudeArgs respects options", () => {
   assert.ok(args.includes("you are helpful"));
   assert.ok(args.includes("--tools"));
   assert.ok(args.includes("Bash,Read"));
+});
+
+// ─── Security: validateSessionId ──────────────────────────────────────────────
+
+test("validateSessionId accepts normal UUID-like ids", () => {
+  assert.ok(validateSessionId("abc123"));
+  assert.ok(validateSessionId("550e8400-e29b-41d4-a716-446655440000"));
+  assert.ok(validateSessionId("session_01_abc-XYZ"));
+});
+
+test("validateSessionId rejects path traversal payload", () => {
+  assert.ok(!validateSessionId("../../../../etc/passwd"));
+  assert.ok(!validateSessionId("../secret"));
+  assert.ok(!validateSessionId("foo/bar"));
+});
+
+test("validateSessionId rejects empty string", () => {
+  assert.ok(!validateSessionId(""));
+});
+
+test("validateSessionId rejects ids longer than 100 chars", () => {
+  assert.ok(!validateSessionId("a".repeat(101)));
+});
+
+test("validateSessionId rejects ids with special characters", () => {
+  assert.ok(!validateSessionId("foo\x00bar"));
+  assert.ok(!validateSessionId("foo bar"));
+  assert.ok(!validateSessionId("foo;rm -rf /"));
+});
+
+// ─── Security: validateExecutionLimits ───────────────────────────────────────
+
+test("validateExecutionLimits accepts values within bounds", () => {
+  assert.equal(validateExecutionLimits({ maxTurns: 500, timeoutMinutes: 240 }), null);
+  assert.equal(validateExecutionLimits({ maxTurns: 1, timeoutMinutes: 1 }), null);
+  assert.equal(validateExecutionLimits({}), null);
+});
+
+test("validateExecutionLimits rejects maxTurns > 500", () => {
+  const err = validateExecutionLimits({ maxTurns: 501, timeoutMinutes: 60 });
+  assert.ok(err && err.includes("maxTurns"));
+});
+
+test("validateExecutionLimits rejects timeoutMinutes > 240", () => {
+  const err = validateExecutionLimits({ maxTurns: 10, timeoutMinutes: 241 });
+  assert.ok(err && err.includes("timeoutMinutes"));
 });
