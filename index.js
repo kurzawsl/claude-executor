@@ -26,6 +26,18 @@ import * as path from "path";
 import * as os from "os";
 
 const execAsync = promisify(exec);
+
+// Surface process-level errors so they land in Claude Code logs instead of silently
+// killing the stdio transport.
+process.on('uncaughtException', (err) => {
+  console.error(JSON.stringify({ type: 'uncaughtException', error: err?.stack || String(err), ts: new Date().toISOString() }));
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error(JSON.stringify({ type: 'unhandledRejection', reason: reason instanceof Error ? reason.stack : String(reason), ts: new Date().toISOString() }));
+  process.exit(1);
+});
+
 const HOME = os.homedir();
 const CLAUDE_PATH = path.join(HOME, ".claude/local/claude");
 const MCP_CONFIG = path.join(HOME, ".claude/.mcp.json");
@@ -57,11 +69,21 @@ async function executeClaudeCommand(options) {
     timeoutMinutes = 60,
     useMcpConfig = true,
     model,
-    dangerouslySkipPermissions = true
+    dangerouslySkipPermissions = false
   } = options;
 
   if (!prompt) {
     return { success: false, error: "Missing required parameter: prompt" };
+  }
+
+  // Validate maxTurns cap
+  if (maxTurns > 500) {
+    return { success: false, error: "maxTurns must be ≤ 500" };
+  }
+
+  // Validate timeoutMinutes cap
+  if (timeoutMinutes > 240) {
+    return { success: false, error: "timeoutMinutes must be ≤ 240" };
   }
 
   // Build command
@@ -275,9 +297,18 @@ async function listSessions(options = {}) {
   };
 }
 
+// Validate sessionId to prevent path traversal
+function validateSessionId(sessionId) {
+  return /^[a-zA-Z0-9_-]{1,100}$/.test(sessionId);
+}
+
 // Get session details
 async function getSession(sessionId, options = {}) {
   const { project, includeMessages = false } = options;
+
+  if (!validateSessionId(sessionId)) {
+    return { success: false, error: "Invalid sessionId: must match ^[a-zA-Z0-9_-]{1,100}$" };
+  }
 
   try {
     // Find the session file
@@ -496,7 +527,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       name: "execute_claude",
       description: `Execute a Claude CLI command (claude -p). This is the primary tool for running Claude with full MCP access.
 
-IMPORTANT: By default, uses --dangerously-skip-permissions and --mcp-config.
+IMPORTANT: Uses --mcp-config by default. Set dangerouslySkipPermissions=true to enable --dangerously-skip-permissions (opt-in, default false).
 Claude can run for HOURS on complex tasks - use async=true for long tasks.
 
 Examples:
@@ -517,7 +548,7 @@ Examples:
           timeoutMinutes: { type: "number", description: "Timeout in minutes (default: 60)" },
           useMcpConfig: { type: "boolean", description: "Use MCP config (default: true)" },
           model: { type: "string", description: "Model to use (default: claude-sonnet-4-20250514)" },
-          dangerouslySkipPermissions: { type: "boolean", description: "Skip permissions (default: true)" }
+          dangerouslySkipPermissions: { type: "boolean", description: "Pass --dangerously-skip-permissions to claude (opt-in, default: false)" }
         },
         required: ["prompt"]
       }
