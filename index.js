@@ -18,6 +18,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { generateJobId, getJobStatus, listJobs, killJob, extractContext, buildClaudeArgs } from "./lib/jobs.js";
 import { spawn, exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs/promises";
@@ -41,11 +42,6 @@ async function ensureDataDir() {
   } catch (e) {
     // Ignore
   }
-}
-
-// Generate unique job ID
-function generateJobId() {
-  return `job_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
 }
 
 // Execute claude -p command
@@ -229,79 +225,6 @@ async function executeAsync(args, workingDirectory, timeoutMinutes) {
   };
 }
 
-// Get job status
-function getJobStatus(jobId) {
-  const job = jobs.get(jobId);
-
-  if (!job) {
-    return { success: false, error: `Job not found: ${jobId}` };
-  }
-
-  return {
-    success: true,
-    job: {
-      id: job.id,
-      status: job.status,
-      startTime: job.startTime,
-      endTime: job.endTime,
-      durationSeconds: job.durationSeconds,
-      exitCode: job.exitCode,
-      output: job.output.slice(-50000), // Last 50KB
-      error: job.error,
-      pid: job.pid
-    }
-  };
-}
-
-// List all jobs
-function listJobs(options = {}) {
-  const { status, limit = 20 } = options;
-
-  let jobList = Array.from(jobs.values());
-
-  if (status) {
-    jobList = jobList.filter(j => j.status === status);
-  }
-
-  jobList.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
-  jobList = jobList.slice(0, limit);
-
-  return {
-    success: true,
-    total: jobs.size,
-    jobs: jobList.map(j => ({
-      id: j.id,
-      status: j.status,
-      startTime: j.startTime,
-      endTime: j.endTime,
-      durationSeconds: j.durationSeconds,
-      command: j.command.substring(0, 100)
-    }))
-  };
-}
-
-// Kill a job
-function killJob(jobId) {
-  const job = jobs.get(jobId);
-
-  if (!job) {
-    return { success: false, error: `Job not found: ${jobId}` };
-  }
-
-  if (job.status !== "running") {
-    return { success: false, error: `Job is not running (status: ${job.status})` };
-  }
-
-  try {
-    process.kill(job.pid, "SIGTERM");
-    job.status = "killed";
-    job.endTime = new Date().toISOString();
-    return { success: true, message: `Job ${jobId} killed` };
-  } catch (e) {
-    return { success: false, error: e.message };
-  }
-}
-
 // List recent Claude sessions from filesystem
 async function listSessions(options = {}) {
   const { hoursAgo = 24, limit = 20, project } = options;
@@ -468,16 +391,6 @@ async function searchSessions(query, options = {}) {
     matches: results.length,
     results
   };
-}
-
-function extractContext(content, query) {
-  const idx = content.toLowerCase().indexOf(query.toLowerCase());
-  if (idx === -1) return "";
-
-  const start = Math.max(0, idx - 100);
-  const end = Math.min(content.length, idx + query.length + 100);
-
-  return "..." + content.substring(start, end).replace(/\n/g, " ") + "...";
 }
 
 // Analyze session for errors
@@ -714,13 +627,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         result = await executeClaudeCommand(args);
         break;
       case "get_job_status":
-        result = getJobStatus(args.jobId);
+        result = getJobStatus(jobs, args.jobId);
         break;
       case "list_jobs":
-        result = listJobs(args);
+        result = listJobs(jobs, args);
         break;
       case "kill_job":
-        result = killJob(args.jobId);
+        result = killJob(jobs, args.jobId);
         break;
       case "list_sessions":
         result = await listSessions(args);
