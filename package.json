@@ -1,13 +1,31 @@
 {
   "name": "mcp-claude-executor",
   "version": "1.0.0",
-  "description": "World-class MCP server for managing Claude CLI execution with conversation history, async jobs, and continuous improvement",
+  "description": "MCP server that wraps the Claude CLI (`claude -p`) with async job management, session inspection, and error analysis",
   "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "test": "node --test test/*.test.js"
   },
+  "license": "MIT",
+  "author": "Lukasz Kurzawski (https://github.com/kurzawsl)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kurzawsl/claude-executor.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kurzawsl/claude-executor/issues"
+  },
+  "homepage": "https://github.com/kurzawsl/claude-executor#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "claude-code",
+    "async",
+    "job-management"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0"
   }
