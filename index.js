@@ -18,7 +18,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { generateJobId, getJobStatus, listJobs, killJob, extractContext, buildClaudeArgs } from "./lib/jobs.js";
+import { generateJobId, getJobStatus, listJobs, killJob, extractContext, buildClaudeArgs, validateSessionId, validateExecutionLimits } from "./lib/jobs.js";
 import { spawn, exec } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs/promises";
@@ -76,14 +76,9 @@ async function executeClaudeCommand(options) {
     return { success: false, error: "Missing required parameter: prompt" };
   }
 
-  // Validate maxTurns cap
-  if (maxTurns > 500) {
-    return { success: false, error: "maxTurns must be ≤ 500" };
-  }
-
-  // Validate timeoutMinutes cap
-  if (timeoutMinutes > 240) {
-    return { success: false, error: "timeoutMinutes must be ≤ 240" };
+  const limitErr = validateExecutionLimits({ maxTurns, timeoutMinutes });
+  if (limitErr) {
+    return { success: false, error: limitErr };
   }
 
   // Build command

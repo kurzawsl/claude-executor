@@ -50,15 +50,23 @@ Claude Code will start the server automatically when needed.
 
 | Tool | Description |
 |------|-------------|
-| `execute_claude` | Execute a `claude -p` command (sync or async). Supports system prompts, tool restrictions, model selection, and working directory. |
+| `execute_claude` | Execute a `claude -p` command (sync or async). Supports system prompts, tool restrictions, model selection, and working directory. `dangerouslySkipPermissions` defaults to **false** — pass `true` to opt in. `maxTurns` is capped at 500; `timeoutMinutes` is capped at 240. |
 | `get_job_status` | Poll the status and captured output of an async job by `jobId`. |
 | `list_jobs` | List all tracked async jobs; filter by status, cap with limit. |
 | `kill_job` | Send SIGTERM to a running async job. |
 | `list_sessions` | List recent Claude conversation sessions from `~/.claude/projects`. |
-| `get_session` | Retrieve details (tools used, message count, errors) for a specific session UUID. |
+| `get_session` | Retrieve details (tools used, message count, errors) for a specific session UUID. Session IDs are validated against `^[a-zA-Z0-9_-]{1,100}$` to prevent path traversal. |
 | `search_sessions` | Full-text search across session JSON files within a time window. |
 | `analyze_session_errors` | Extract tool errors and warnings from a session file. |
 | `health_check` | Verify that the Claude CLI binary, MCP config, and sessions directory are accessible. |
+
+### Security defaults
+
+| Parameter | Default | Notes |
+|-----------|---------|-------|
+| `dangerouslySkipPermissions` | `false` | Must be explicitly set to `true` to pass `--dangerously-skip-permissions` |
+| `maxTurns` | `10` | Hard cap at **500**; values above are rejected |
+| `timeoutMinutes` | `60` | Hard cap at **240** (4 h); values above are rejected |
 
 ### Example: run a task asynchronously
 
@@ -101,6 +109,18 @@ Response when complete:
 }
 ```
 
+### Example: opt in to dangerously-skip-permissions
+
+```json
+{
+  "tool": "execute_claude",
+  "arguments": {
+    "prompt": "Run automated refactor",
+    "dangerouslySkipPermissions": true
+  }
+}
+```
+
 ## Development
 
 ```bash
@@ -111,7 +131,7 @@ npm test
 npm start
 ```
 
-Tests live in `test/jobs.test.js` and cover the pure job-management helpers in `lib/jobs.js`.
+Tests live in `test/jobs.test.js` and cover the pure job-management helpers in `lib/jobs.js`, including security validations (path traversal, oversized limits).
 
 ## License
 
