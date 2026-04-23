@@ -1,20 +1,21 @@
 # claude-executor
 
+[![CI](https://github.com/kurzawsl/claude-executor/actions/workflows/ci.yml/badge.svg)](https://github.com/kurzawsl/claude-executor/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 An MCP server that wraps the Claude CLI (`claude -p`) with async job management, session inspection, and error analysis. Register it in Claude Code to programmatically launch and monitor Claude sub-processes from within an agent session.
+
+## Prerequisites
+
+- Node.js 20+
+- Claude CLI installed at `~/.claude/local/claude` (default) or any path — set `CLAUDE_CLI_PATH` to override
 
 ## Installation
 
 ```bash
-# Clone and install dependencies
 git clone https://github.com/kurzawsl/claude-executor.git
 cd claude-executor
 npm install
-```
-
-Or install globally via npm (once published):
-
-```bash
-npm install -g mcp-claude-executor
 ```
 
 ## Usage
@@ -27,11 +28,21 @@ Register the server in your Claude Code MCP config (`~/.claude.json`):
     "claude-executor": {
       "command": "node",
       "args": ["/path/to/claude-executor/index.js"],
-      "env": {}
+      "env": {
+        "CLAUDE_CLI_PATH": "/path/to/claude",
+        "CLAUDE_CODE_OAUTH_TOKEN": "<your-oauth-token>"
+      }
     }
   }
 }
 ```
+
+**Environment variables:**
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CLAUDE_CLI_PATH` | No | Override Claude CLI path (default: `~/.claude/local/claude`) |
+| `CLAUDE_CODE_OAUTH_TOKEN` | Yes | OAuth token passed to Claude sub-processes for authentication |
 
 Claude Code will start the server automatically when needed.
 
@@ -51,6 +62,7 @@ Claude Code will start the server automatically when needed.
 
 ### Example: run a task asynchronously
 
+Request:
 ```json
 {
   "tool": "execute_claude",
@@ -62,7 +74,32 @@ Claude Code will start the server automatically when needed.
 }
 ```
 
-Then poll with `get_job_status` using the returned `jobId`.
+Response:
+```json
+{
+  "jobId": "job_1714000000000_abc12",
+  "status": "running",
+  "message": "Job started. Poll with get_job_status using the jobId."
+}
+```
+
+Then poll with `get_job_status`:
+```json
+{
+  "tool": "get_job_status",
+  "arguments": { "jobId": "job_1714000000000_abc12" }
+}
+```
+
+Response when complete:
+```json
+{
+  "jobId": "job_1714000000000_abc12",
+  "status": "completed",
+  "exitCode": 0,
+  "output": "Here is a summary of the last 7 days of commits:\n- feat: add async job queue\n- fix: handle SIGTERM gracefully\n..."
+}
+```
 
 ## Development
 
